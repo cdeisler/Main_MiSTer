@@ -7972,10 +7972,16 @@ void menu_process_save()
 }
 
 static char pchar[] = { 0x8C, 0x8E, 0x8F, 0x90, 0x91, 0x7F };
+static int quiet_load = 0;
 
 #define PROGRESS_CNT    28
 #define PROGRESS_CHARS  (int)(sizeof(pchar)/sizeof(pchar[0]))
 #define PROGRESS_MAX    ((PROGRESS_CHARS*PROGRESS_CNT)-1)
+
+void menu_set_quiet_load(int quiet)
+{
+	quiet_load = quiet ? 1 : 0;
+}
 
 void ProgressMessage(const char* title, const char* text, int current, int max)
 {
@@ -7986,6 +7992,8 @@ void ProgressMessage(const char* title, const char* text, int current, int max)
 		MenuHide();
 		return;
 	}
+
+	if (quiet_load) return;
 
 	int new_progress = (((uint64_t)current)*PROGRESS_MAX) / max;
 	if (progress != new_progress)

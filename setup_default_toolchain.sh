@@ -2,8 +2,8 @@
 
 if [ "${BASH_SOURCE[0]}" -ef "$0" ]
 then
-    echo "This script should be sourced, not executed."
-    exit 1
+	echo "This script should be sourced, not executed."
+	exit 1
 fi
 
 echo "Setting up default toolchain..."

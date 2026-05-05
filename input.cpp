@@ -33,6 +33,7 @@
 #include "profiling.h"
 #include "gamecontroller_db.h"
 #include "str_util.h"
+#include "support/neogeo/neogeo_loader.h"
 #include "frame_timer.h"
 #include "scaler.h"
 
@@ -40,6 +41,12 @@
 #define UINPUT_NAME "MiSTer virtual input"
 
 bool update_advanced_state(int devnum, uint16_t evcode, int evstate);
+
+struct quiet_load_scope
+{
+	quiet_load_scope() { menu_set_quiet_load(1); }
+	~quiet_load_scope() { menu_set_quiet_load(0); }
+};
 
 char joy_bnames[NUMBUTTONS][32] = {};
 int  joy_bcount = 0;
@@ -6158,6 +6165,17 @@ int input_test(int getchar)
 					printf("MiSTer_cmd: %s\n", cmd);
 					if (!strncmp(cmd, "fb_cmd", 6)) video_cmd(cmd);
 					else if (!strncmp(cmd, "video_mode ", 11)) video_mode_cmd(cmd + 11);
+					else if (!strncmp(cmd, "load_core_quiet ", 16))
+					{
+						quiet_load_scope quiet_load;
+						if (isXmlName(cmd)) xml_load(cmd + 16);
+						else fpga_load_rbf(cmd + 16);
+					}
+					else if (!strncmp(cmd, "load_neo_quiet ", 15))
+					{
+						quiet_load_scope quiet_load;
+						neogeo_romset_tx(cmd + 15, 0);
+					}
 					else if (!strncmp(cmd, "load_core ", 10))
 					{
 						if(isXmlName(cmd)) xml_load(cmd + 10);

@@ -6,6 +6,7 @@
 
 # ignore compiled python
 *pyc
+__pycache__/
 
 # ignore some backup files
 *bak
@@ -29,3 +30,5 @@ host
 .vs
 MiSTer
 /bin
+build.log
+build.exit

@@ -72,6 +72,8 @@ static const ini_var_t ini_vars[] =
 	{ "CONTROLLER_INFO", (void*)(&(cfg.controller_info)), UINT8, 0, 10 },
 	{ "REFRESH_MIN", (void*)(&(cfg.refresh_min)), FLOAT, 0, 150 },
 	{ "REFRESH_MAX", (void*)(&(cfg.refresh_max)), FLOAT, 0, 150 },
+	{ "VRR_MIN_FRAMERATE", (void*)(&(cfg.refresh_min)), FLOAT, 0, 150 },
+	{ "VRR_MAX_FRAMERATE", (void*)(&(cfg.refresh_max)), FLOAT, 0, 150 },
 	{ "JAMMA_VID", (void*)(&(cfg.jamma_vid)), HEX16, 0, 0xFFFF },
 	{ "JAMMA_PID", (void*)(&(cfg.jamma_pid)), HEX16, 0, 0xFFFF },
 	{ "JAMMA2_VID", (void*)(&(cfg.jamma2_vid)), HEX16, 0, 0xFFFF },
