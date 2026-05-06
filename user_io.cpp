@@ -41,6 +41,31 @@
 #include "scaler.h"
 #include "support.h"
 
+static bool same_executable_file(const char *lhs, const char *rhs)
+{
+	if (!lhs || !rhs || !lhs[0] || !rhs[0]) return false;
+	if (!strcasecmp(lhs, rhs)) return true;
+
+	struct stat lhs_stat = {};
+	struct stat rhs_stat = {};
+	if (stat(lhs, &lhs_stat) || stat(rhs, &rhs_stat)) return false;
+
+	return lhs_stat.st_dev == rhs_stat.st_dev && lhs_stat.st_ino == rhs_stat.st_ino;
+}
+
+static void log_user_io_startup_event(const char *message)
+{
+	FILE *log = fopen("/media/fat/mister-http-startup.log", "a");
+	if (log)
+	{
+		time_t now = time(NULL);
+		fprintf(log, "[%ld] startup: %s\n", (long)now, message);
+		fclose(log);
+	}
+	fprintf(stderr, "startup: %s\n", message);
+	fflush(stderr);
+}
+
 static char core_path[1024] = {};
 static char rbf_path[1024] = {};
 
@@ -1447,10 +1472,31 @@ void user_io_init(const char *path, const char *xml)
 	}
 
 	const char *main = getFullPath(cfg.main);
-	if (strcasecmp(main, getappname()) && FileExists(main))
+	const char *current_exec = getappname();
+	char restart_log[2048];
+	snprintf(restart_log, sizeof(restart_log),
+		"restart check cfg.main=%s resolved_main=%s current_exec=%s exists=%d same_file=%d",
+		cfg.main,
+		main,
+		current_exec,
+		FileExists(main) ? 1 : 0,
+		same_executable_file(main, current_exec) ? 1 : 0);
+	log_user_io_startup_event(restart_log);
+
+	if (FileExists(main) && !same_executable_file(main, current_exec))
 	{
-		printf("Current exec is %s, core requires exec %s\n", getappname(), main);
+		printf("Current exec is %s, core requires exec %s\n", current_exec, main);
+		log_user_io_startup_event("restart decision=restart");
 		app_restart(path, xml, main);
+	}
+	else if (FileExists(main) && strcasecmp(main, current_exec))
+	{
+		printf("Current exec path differs but matches required exec file: %s == %s\n", current_exec, main);
+		log_user_io_startup_event("restart decision=skip same-file match");
+	}
+	else
+	{
+		log_user_io_startup_event("restart decision=skip exact-path match or missing target");
 	}
 
 	uint8_t hotswap[4] = {};

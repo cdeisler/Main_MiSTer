@@ -41,6 +41,7 @@
 #define UINPUT_NAME "MiSTer virtual input"
 
 bool update_advanced_state(int devnum, uint16_t evcode, int evstate);
+void http_server_process_pending_launches();
 
 struct quiet_load_scope
 {
@@ -6153,6 +6154,8 @@ int input_test(int getchar)
 					}
 				}
 			}
+
+			http_server_process_pending_launches();
 
 			if ((pool[NUMDEV + 1].fd >= 0) && (pool[NUMDEV + 1].revents & POLLIN))
 			{

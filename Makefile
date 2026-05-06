@@ -25,8 +25,12 @@ INCLUDE += -I./lib/zstd/lib
 INCLUDE += -I./lib/libchdr/include
 INCLUDE += -I./lib/bluetooth
 INCLUDE += -I./lib/serial_server/library
+INCLUDE += -I./lib/httplib
 
 BUILDDIR = bin
+BUILD_STAMP := $(shell date +"%Y%m%d-%H%M%S")
+BUILD_HASH := $(shell git rev-parse --short=12 HEAD 2>/dev/null || echo nogit)
+BUILD_DIRTY := $(shell test -n "$$(git status --porcelain --untracked-files=no 2>/dev/null)" && echo -dirty || true)
 
 PRJ = MiSTer
 C_SRC =   $(wildcard *.c) \
@@ -49,7 +53,7 @@ IMLIB2_LIB  = -Llib/imlib2 -lfreetype -lbz2 -lpng16 -lz -lImlib2
 OBJ	= $(C_SRC:%.c=$(BUILDDIR)/%.c.o) $(CPP_SRC:%.cpp=$(BUILDDIR)/%.cpp.o) $(IMG:%.png=$(BUILDDIR)/%.png.o)
 DEP	= $(C_SRC:%.c=$(BUILDDIR)/%.c.d) $(CPP_SRC:%.cpp=$(BUILDDIR)/%.cpp.d)
 
-DFLAGS	= $(INCLUDE) -D_7ZIP_ST -DPACKAGE_VERSION=\"1.3.3\" -DHAVE_LROUND -DHAVE_STDINT_H -DHAVE_STDLIB_H -DHAVE_SYS_PARAM_H -DENABLE_64_BIT_WORDS=0 -D_FILE_OFFSET_BITS=64 -D_LARGEFILE64_SOURCE -DVDATE=\"`date +"%y%m%d"`\"
+DFLAGS	= $(INCLUDE) -D_7ZIP_ST -DPACKAGE_VERSION=\"1.3.3\" -DHAVE_LROUND -DHAVE_STDINT_H -DHAVE_STDLIB_H -DHAVE_SYS_PARAM_H -DENABLE_64_BIT_WORDS=0 -D_FILE_OFFSET_BITS=64 -D_LARGEFILE64_SOURCE -DVDATE=\"`date +"%y%m%d"`\" -DBUILD_STAMP=\"$(BUILD_STAMP)\" -DBUILD_HASH=\"$(BUILD_HASH)$(BUILD_DIRTY)\"
 CFLAGS	= $(DFLAGS) -Wall -Wextra -Wno-strict-aliasing -Wno-stringop-overflow -Wno-stringop-truncation -Wno-format-truncation -Wno-psabi -Wno-restrict -c
 LFLAGS	= -lc -lstdc++ -lm -lrt -Wl,--allow-shlib-undefined -Wl,-rpath-link,/usr/arm-linux-gnueabihf/lib $(IMLIB2_LIB) -ldl -Llib/bluetooth -lbluetooth -lpthread
 
