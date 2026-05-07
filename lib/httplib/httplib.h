@@ -50,6 +50,40 @@ struct Response {
   }
 };
 
+inline int hex_to_int(char ch) {
+  if (ch >= '0' && ch <= '9') return ch - '0';
+  ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+  if (ch >= 'a' && ch <= 'f') return 10 + (ch - 'a');
+  return -1;
+}
+
+inline std::string url_decode(const std::string &text) {
+  std::string decoded;
+  decoded.reserve(text.size());
+
+  for (size_t i = 0; i < text.size(); ++i) {
+    const char ch = text[i];
+    if (ch == '+' ) {
+      decoded.push_back(' ');
+      continue;
+    }
+
+    if (ch == '%' && (i + 2) < text.size()) {
+      const int hi = hex_to_int(text[i + 1]);
+      const int lo = hex_to_int(text[i + 2]);
+      if (hi >= 0 && lo >= 0) {
+        decoded.push_back(static_cast<char>((hi << 4) | lo));
+        i += 2;
+        continue;
+      }
+    }
+
+    decoded.push_back(ch);
+  }
+
+  return decoded;
+}
+
 class Server {
  public:
   using Handler = std::function<void(const Request &, Response &)>;
@@ -182,9 +216,9 @@ class Server {
       while (std::getline(query_stream, pair, '&')) {
         const auto eq = pair.find('=');
         if (eq == std::string::npos) {
-          request.params[pair] = "";
+          request.params[url_decode(pair)] = "";
         } else {
-          request.params[pair.substr(0, eq)] = pair.substr(eq + 1);
+          request.params[url_decode(pair.substr(0, eq))] = url_decode(pair.substr(eq + 1));
         }
       }
     }

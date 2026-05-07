@@ -8,16 +8,34 @@
 #include <time.h>
 #include <vector>
 
+#include "file_io.h"
 #include "fpga_io.h"
 #include "httplib.h"
 #include "menu.h"
+#include "user_io.h"
 #include "support/arcade/mra_loader.h"
 #include "support/neogeo/neogeo_loader.h"
+
+extern const char *version;
+
+#ifndef BUILD_STAMP
+#define BUILD_STAMP "unknown"
+#endif
+
+#ifndef BUILD_HASH
+#define BUILD_HASH "unknown"
+#endif
 
 namespace {
 
 constexpr const char *ROOT_DIR = "/media/fat";
 constexpr const char *HTTP_LOG_PATH = "/media/fat/mister-http-startup.log";
+constexpr const char *PENDING_NEO_ENV = "MISTER_HTTP_PENDING_NEO_PATH";
+constexpr const char *NEOGEO_CORE_SUBDIR = "_Console";
+constexpr const char *NEOGEO_CORE_HINTS[] = {
+  "/media/fat/_Console/NeoGeo_20250909.rbf",
+  "/media/fat/_Console/NeoGeo.rbf",
+};
 
 std::atomic<bool> server_started{false};
 std::thread server_thread;
@@ -45,6 +63,116 @@ void log_http_server(const char *message)
 bool path_is_under_root(const std::string &path)
 {
   return path.rfind(ROOT_DIR, 0) == 0;
+}
+
+bool write_pending_neo_launch(const std::string &path)
+{
+  return setenv(PENDING_NEO_ENV, path.c_str(), 1) == 0;
+}
+
+void clear_pending_neo_launch()
+{
+  unsetenv(PENDING_NEO_ENV);
+}
+
+bool path_is_neogeo_core(const char *path)
+{
+  if (!path) return false;
+
+  const char *name = std::strrchr(path, '/');
+  name = name ? name + 1 : path;
+
+  const char *extension = std::strrchr(name, '.');
+  if (!extension || strcasecmp(extension, ".rbf")) {
+    return false;
+  }
+
+  if (strncasecmp(name, "NeoGeo", 6)) {
+    return false;
+  }
+
+  const char separator = name[6];
+  return separator == '_' || separator == '.';
+}
+
+bool resolve_neogeo_core_path_via_shell(std::string &path)
+{
+  const char *command =
+      "for f in /media/fat/_Console/NeoGeo*.rbf; do "
+      "[ -e \"$f\" ] || continue; "
+      "case \"$(basename \"$f\")\" in NeoGeoPocket*) continue ;; esac; "
+      "printf '%s\\n' \"$f\"; "
+      "done | tail -n 1";
+
+  FILE *pipe = popen(command, "r");
+  if (!pipe) {
+    return false;
+  }
+
+  char buffer[1024] = {};
+  const bool has_path = std::fgets(buffer, sizeof(buffer), pipe) != nullptr;
+  pclose(pipe);
+  if (!has_path) {
+    return false;
+  }
+
+  buffer[strcspn(buffer, "\r\n")] = 0;
+  if (!path_is_neogeo_core(buffer)) {
+    return false;
+  }
+
+  path = buffer;
+  return true;
+}
+
+bool resolve_neogeo_core_path(std::string &path, std::string &error)
+{
+  const char *root_dir = getRootDir();
+  if (!root_dir || !root_dir[0]) {
+    error = "root directory unavailable";
+    return false;
+  }
+
+  char console_subdir[64] = {};
+  std::snprintf(console_subdir, sizeof(console_subdir), "%s", NEOGEO_CORE_SUBDIR);
+
+  std::string best_match;
+  if (ScanDirectory(console_subdir, SCANF_INIT, "rbf", 0)) {
+    for (int index = 0; index < flist_nDirEntries(); ++index) {
+      direntext_t *entry = flist_DirItem(index);
+      if (!entry || entry->de.d_type != DT_REG) {
+        continue;
+      }
+
+      if (!path_is_neogeo_core(entry->de.d_name)) {
+        continue;
+      }
+
+      const std::string candidate = std::string(root_dir) + "/" + NEOGEO_CORE_SUBDIR + "/" + entry->de.d_name;
+      if (best_match.empty() || strcasecmp(candidate.c_str(), best_match.c_str()) > 0) {
+        best_match = candidate;
+      }
+    }
+  }
+
+  if (best_match.empty()) {
+    if (resolve_neogeo_core_path_via_shell(path)) {
+      return true;
+    }
+
+    for (const char *candidate : NEOGEO_CORE_HINTS) {
+      if (path_is_neogeo_core(candidate)) {
+        path = candidate;
+        return true;
+      }
+    }
+
+    error = std::string("no NeoGeo core found in ") + root_dir + "/" + NEOGEO_CORE_SUBDIR;
+    return false;
+  }
+
+  path = best_match;
+  return true;
 }
 
 struct quiet_load_scope
@@ -101,7 +229,42 @@ void http_server_process_pending_launches()
   for (const auto &command : pending) {
     quiet_load_scope quiet_load;
     if (command.is_neo) {
-      neogeo_romset_tx(const_cast<char *>(command.path.c_str()), 0);
+      if (is_neogeo()) {
+        clear_pending_neo_launch();
+        neogeo_romset_tx(const_cast<char *>(command.path.c_str()), 0);
+        continue;
+      }
+
+      if (!write_pending_neo_launch(command.path)) {
+        clear_pending_neo_launch();
+        log_http_server("Failed to store pending Neo Geo launch intent; falling back to direct loader");
+        neogeo_romset_tx(const_cast<char *>(command.path.c_str()), 0);
+        continue;
+      }
+
+      if (path_is_neogeo_core(NEOGEO_CORE_HINTS[0])) {
+        std::string message = std::string("Switching to Neo Geo core via known path: ") + NEOGEO_CORE_HINTS[0];
+        log_http_server(message.c_str());
+        if (fpga_load_rbf(NEOGEO_CORE_HINTS[0]) == 0) {
+          continue;
+        }
+
+        log_http_server("Known Neo Geo core path failed to load; falling back to resolver");
+      }
+
+      std::string neogeo_core_path;
+      std::string resolve_error;
+      if (!resolve_neogeo_core_path(neogeo_core_path, resolve_error)) {
+        clear_pending_neo_launch();
+        std::string message = std::string("Failed to resolve Neo Geo core (") + resolve_error + "); falling back to direct loader";
+        log_http_server(message.c_str());
+        neogeo_romset_tx(const_cast<char *>(command.path.c_str()), 0);
+        continue;
+      }
+
+      std::string message = std::string("Switching to Neo Geo core for pending ROM launch: ") + neogeo_core_path;
+      log_http_server(message.c_str());
+      fpga_load_rbf(neogeo_core_path.c_str());
     } else if (isXmlName(command.path.c_str())) {
       xml_load(command.path.c_str());
     } else {
@@ -123,7 +286,13 @@ void http_server_start()
     httplib::Server svr;
 
     svr.Get("/health", [](const httplib::Request &, httplib::Response &res) {
-      res.set_content("{\"ok\":true,\"port\":8080,\"mode\":\"native-runtime\"}", "application/json");
+      char body[256];
+      std::snprintf(body, sizeof(body),
+                    "{\"ok\":true,\"port\":8080,\"mode\":\"native-runtime\",\"build_version\":\"%s\",\"build_stamp\":\"%s\",\"build_hash\":\"%s\"}",
+                    version + 5,
+                    BUILD_STAMP,
+                    BUILD_HASH);
+      res.set_content(body, "application/json");
     });
 
     svr.Get("/status", [](const httplib::Request &, httplib::Response &res) {

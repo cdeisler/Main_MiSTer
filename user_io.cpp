@@ -66,6 +66,24 @@ static void log_user_io_startup_event(const char *message)
 	fflush(stderr);
 }
 
+static const char *pending_neo_launch_env = "MISTER_HTTP_PENDING_NEO_PATH";
+
+static bool read_pending_neo_launch(char *path, size_t path_size)
+{
+	if (!path || path_size < 2) return false;
+
+	const char *pending = getenv(pending_neo_launch_env);
+	if (!pending || pending[0] != '/') return false;
+
+	snprintf(path, path_size, "%s", pending);
+	return path[0] == '/';
+}
+
+static void clear_pending_neo_launch()
+{
+	unsetenv(pending_neo_launch_env);
+}
+
 static char core_path[1024] = {};
 static char rbf_path[1024] = {};
 
@@ -1721,6 +1739,25 @@ void user_io_init(const char *path, const char *xml)
 		}
 		break;
 	}
+
+		if (is_neogeo())
+		{
+			char pending_neo_path[1024] = {};
+			if (read_pending_neo_launch(pending_neo_path, sizeof(pending_neo_path)))
+			{
+				char log_message[1200];
+				snprintf(log_message, sizeof(log_message), "autoload pending Neo Geo ROM: %s", pending_neo_path);
+				log_user_io_startup_event(log_message);
+				menu_set_quiet_load(1);
+				neogeo_romset_tx(pending_neo_path, 0);
+				menu_set_quiet_load(0);
+				log_user_io_startup_event("clearing Neo Geo menu OSD after pending ROM autoload");
+				MenuHide();
+				OsdClear();
+				OsdDisable();
+				clear_pending_neo_launch();
+			}
+		}
 
 	OsdRotation((cfg.osd_rotate == 1) ? 3 : (cfg.osd_rotate == 2) ? 1 : 0);
 
