@@ -67,6 +67,7 @@ static void log_user_io_startup_event(const char *message)
 }
 
 static const char *pending_neo_launch_env = "MISTER_HTTP_PENDING_NEO_PATH";
+static char suppress_menu_for_pending_neo_launch = 0;
 
 static bool read_pending_neo_launch(char *path, size_t path_size)
 {
@@ -77,6 +78,19 @@ static bool read_pending_neo_launch(char *path, size_t path_size)
 
 	snprintf(path, path_size, "%s", pending);
 	return path[0] == '/';
+}
+
+char user_io_should_suppress_menu_for_pending_neo_launch()
+{
+	if (suppress_menu_for_pending_neo_launch) return 1;
+
+	char pending_neo_path[2] = {};
+	return read_pending_neo_launch(pending_neo_path, sizeof(pending_neo_path)) ? 1 : 0;
+}
+
+void user_io_clear_pending_neo_launch_menu_suppression()
+{
+	suppress_menu_for_pending_neo_launch = 0;
 }
 
 static void clear_pending_neo_launch()
@@ -237,6 +251,11 @@ char *user_io_get_core_path(const char *suffix, int recheck)
 	}
 
 	return tmp;
+}
+
+const char *user_io_get_current_rbf_path()
+{
+	return rbf_path;
 }
 
 static char is_arcade_type = 0;
@@ -1748,6 +1767,7 @@ void user_io_init(const char *path, const char *xml)
 				char log_message[1200];
 				snprintf(log_message, sizeof(log_message), "autoload pending Neo Geo ROM: %s", pending_neo_path);
 				log_user_io_startup_event(log_message);
+				suppress_menu_for_pending_neo_launch = 1;
 				menu_set_quiet_load(1);
 				neogeo_romset_tx(pending_neo_path, 0);
 				menu_set_quiet_load(0);

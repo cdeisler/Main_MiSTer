@@ -15,6 +15,7 @@
 #include "user_io.h"
 #include "support/arcade/mra_loader.h"
 #include "support/neogeo/neogeo_loader.h"
+#include "build_meta.h"
 
 extern const char *version;
 

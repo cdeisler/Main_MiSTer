@@ -4,6 +4,7 @@
 #include <sys/stat.h>
 #include <dirent.h>
 #include <ctype.h>
+#include <time.h>
 
 #include "../../sxmlc.h"
 #include "../../user_io.h"
@@ -53,6 +54,31 @@ static char arcade_error_msg[kBigTextSize] = {};
 static char arcade_root[kBigTextSize];
 static char mame_root[kBigTextSize];
 static char arcade_setname[kBigTextSize] = {};
+
+static void log_arcade_load_event(const char *message)
+{
+	FILE *log = fopen("/media/fat/mister-http-startup.log", "a");
+	if (log)
+	{
+		time_t now = time(NULL);
+		fprintf(log, "[%ld] arcade: %s\n", (long)now, message);
+		fclose(log);
+	}
+	fprintf(stderr, "arcade: %s\n", message);
+	fflush(stderr);
+}
+
+static bool same_rbf_path(const char *lhs, const char *rhs)
+{
+	if (!lhs || !rhs || !lhs[0] || !rhs[0]) return false;
+	if (!strcasecmp(lhs, rhs)) return true;
+
+	struct stat lhs_stat = {};
+	struct stat rhs_stat = {};
+	if (stat(lhs, &lhs_stat) || stat(rhs, &rhs_stat)) return false;
+
+	return lhs_stat.st_dev == rhs_stat.st_dev && lhs_stat.st_ino == rhs_stat.st_ino;
+}
 
 static bool is_vertical = false;
 static int rotation_dir = 0; // 0 = None, 1 = CW, 2 = CCW
@@ -1307,19 +1333,47 @@ int xml_load(const char *xml)
 	else snprintf(path, sizeof(path), "%s/%s", getRootDir(), xml);
 
 	int len = strlen(xml);
-	int is_arcade = (len > 4) && !strcasecmp(xml + len - 4, ".mra");
+	int is_arcade_xml = (len > 4) && !strcasecmp(xml + len - 4, ".mra");
 
-	if (is_arcade) set_arcade_root(path);
+	if (is_arcade_xml) set_arcade_root(path);
 	printf("xml_load [%s]\n", path);
-	const char *rbf = get_rbf(path, is_arcade);
+	const char *rbf = get_rbf(path, is_arcade_xml);
 
 	if (rbf)
 	{
+		const char *current_rbf = user_io_get_current_rbf_path();
+		if (is_arcade_xml)
+		{
+			char log_message[3072];
+			snprintf(log_message, sizeof(log_message),
+				"xml_load path=%s resolved_rbf=%s current_rbf=%s active_arcade=%d same_core=%d",
+				path,
+				rbf,
+				current_rbf[0] ? current_rbf : "",
+				is_arcade() ? 1 : 0,
+				same_rbf_path(rbf, current_rbf) ? 1 : 0);
+			log_arcade_load_event(log_message);
+		}
+
+		if (is_arcade_xml && is_arcade() && same_rbf_path(rbf, current_rbf))
+		{
+			printf("XML: %s, reusing current arcade core: %s\n", path, rbf);
+			log_arcade_load_event("reusing current arcade core; sending new ROM set only");
+			arcade_pre_parse(path);
+			arcade_send_rom(path);
+			process_ss(path);
+			arcade_check_error();
+			log_arcade_load_event("same-core arcade load finished");
+			return 0;
+		}
+
 		printf("XML: %s, RBF: %s\n", path, rbf);
+		if (is_arcade_xml) log_arcade_load_event("loading arcade core via fpga_load_rbf");
 		fpga_load_rbf(rbf, NULL, path);
 	}
 	else
 	{
+		if (is_arcade_xml) log_arcade_load_event("no RBF found for arcade XML load");
 		Info("No rbf found!");
 	}
 

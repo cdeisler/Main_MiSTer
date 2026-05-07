@@ -17,6 +17,7 @@ else
 endif
 
 INCLUDE	= -I./
+INCLUDE	+= -I./bin
 INCLUDE	+= -I./lib/libco
 INCLUDE	+= -I./lib/miniz
 INCLUDE	+= -I./lib/md5
@@ -28,9 +29,19 @@ INCLUDE += -I./lib/serial_server/library
 INCLUDE += -I./lib/httplib
 
 BUILDDIR = bin
-BUILD_STAMP := $(shell date +"%Y%m%d-%H%M%S")
 BUILD_HASH := $(shell git rev-parse --short=12 HEAD 2>/dev/null || echo nogit)
 BUILD_DIRTY := $(shell test -n "$$(git status --porcelain --untracked-files=no 2>/dev/null)" && echo -dirty || true)
+BUILD_META = $(BUILDDIR)/build_meta.h
+
+ifeq ($(MAKE_RESTARTS),)
+BUILD_STAMP := $(shell date +"%Y%m%d-%H%M%S")
+else
+BUILD_STAMP := $(shell sed -n 's/^#define BUILD_STAMP "\(.*\)"/\1/p' $(BUILD_META) 2>/dev/null | head -n 1)
+endif
+
+ifeq ($(strip $(BUILD_STAMP)),)
+BUILD_STAMP := $(shell date +"%Y%m%d-%H%M%S")
+endif
 
 PRJ = MiSTer
 C_SRC =   $(wildcard *.c) \
@@ -53,7 +64,7 @@ IMLIB2_LIB  = -Llib/imlib2 -lfreetype -lbz2 -lpng16 -lz -lImlib2
 OBJ	= $(C_SRC:%.c=$(BUILDDIR)/%.c.o) $(CPP_SRC:%.cpp=$(BUILDDIR)/%.cpp.o) $(IMG:%.png=$(BUILDDIR)/%.png.o)
 DEP	= $(C_SRC:%.c=$(BUILDDIR)/%.c.d) $(CPP_SRC:%.cpp=$(BUILDDIR)/%.cpp.d)
 
-DFLAGS	= $(INCLUDE) -D_7ZIP_ST -DPACKAGE_VERSION=\"1.3.3\" -DHAVE_LROUND -DHAVE_STDINT_H -DHAVE_STDLIB_H -DHAVE_SYS_PARAM_H -DENABLE_64_BIT_WORDS=0 -D_FILE_OFFSET_BITS=64 -D_LARGEFILE64_SOURCE -DVDATE=\"`date +"%y%m%d"`\" -DBUILD_STAMP=\"$(BUILD_STAMP)\" -DBUILD_HASH=\"$(BUILD_HASH)$(BUILD_DIRTY)\"
+DFLAGS	= $(INCLUDE) -D_7ZIP_ST -DPACKAGE_VERSION=\"1.3.3\" -DHAVE_LROUND -DHAVE_STDINT_H -DHAVE_STDLIB_H -DHAVE_SYS_PARAM_H -DENABLE_64_BIT_WORDS=0 -D_FILE_OFFSET_BITS=64 -D_LARGEFILE64_SOURCE -DVDATE=\"`date +"%y%m%d"`\"
 CFLAGS	= $(DFLAGS) -Wall -Wextra -Wno-strict-aliasing -Wno-stringop-overflow -Wno-stringop-truncation -Wno-format-truncation -Wno-psabi -Wno-restrict -c
 LFLAGS	= -lc -lstdc++ -lm -lrt -Wl,--allow-shlib-undefined -Wl,-rpath-link,/usr/arm-linux-gnueabihf/lib $(IMLIB2_LIB) -ldl -Llib/bluetooth -lbluetooth -lpthread
 
@@ -81,6 +92,14 @@ endif
 clean:
 	$(Q)rm -rf bin
 
+.PHONY: FORCE
+FORCE:
+
+$(BUILD_META): FORCE
+	@mkdir -p $(dir $@)
+	$(Q)printf '#pragma once\n#define BUILD_STAMP "%s"\n#define BUILD_HASH "%s%s"\n' "$(BUILD_STAMP)" "$(BUILD_HASH)" "$(BUILD_DIRTY)" > $@.tmp
+	$(Q)if ! cmp -s $@.tmp $@; then mv $@.tmp $@; else rm -f $@.tmp; fi
+
 $(BUILDDIR)/%.c.o: %.c
 	$(Q)$(info $<)
 	$(Q)$(CC) $(CFLAGS) -std=gnu99 -o $@ -c $< 2>&1 | $(OUTPUT_FILTER)
@@ -105,6 +124,11 @@ $(BUILDDIR)/%.cpp.d: %.cpp
 	@mkdir -p $(dir $(BUILDDIR)/$*)
 	$(Q)$(info $< >> $@)
 	$(Q)$(CC) $(DFLAGS) -MM $< -MT $@ -MT $*.cpp.o -MF $@ 2>&1 | $(OUTPUT_FILTER)
+
+$(BUILDDIR)/main.cpp.d: $(BUILD_META)
+$(BUILDDIR)/http_server.cpp.d: $(BUILD_META)
+$(BUILDDIR)/main.cpp.o: $(BUILD_META)
+$(BUILDDIR)/http_server.cpp.o: $(BUILD_META)
 
 # Ensure correct time stamp
 $(BUILDDIR)/main.cpp.o: $(filter-out $(BUILDDIR)/main.cpp.o, $(OBJ))

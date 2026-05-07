@@ -68,6 +68,19 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "str_util.h"
 #include "autofire.h"
 
+static void log_menu_kiosk_event(const char *message)
+{
+	FILE *log = fopen("/media/fat/mister-http-startup.log", "a");
+	if (log)
+	{
+		time_t now = time(NULL);
+		fprintf(log, "[%ld] menu: %s\n", (long)now, message);
+		fclose(log);
+	}
+	fprintf(stderr, "menu: %s\n", message);
+	fflush(stderr);
+}
+
 /*menu states*/
 enum MENU
 {
@@ -1543,6 +1556,20 @@ void HandleUI(void)
 		// fall through
 
 	case MENU_NONE2:
+		if (user_io_should_suppress_menu_for_pending_neo_launch())
+		{
+			if (!menu)
+			{
+				menustate = MENU_NONE1;
+				OsdClear();
+				OsdDisable();
+				break;
+			}
+
+			log_menu_kiosk_event("releasing generic menu suppression due to explicit menu request");
+			user_io_clear_pending_neo_launch_menu_suppression();
+		}
+
 		if (menu && !osd_unlocked)
 		{
 			menustate = MENU_UNLOCK1;

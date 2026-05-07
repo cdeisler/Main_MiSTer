@@ -195,6 +195,7 @@ char *user_io_make_filepath(const char *path, const char *filename);
 char *user_io_get_core_name(int orig = 0);
 char *user_io_get_core_name2();
 char *user_io_get_core_path(const char *suffix = NULL, int recheck = 0);
+const char *user_io_get_current_rbf_path();
 void user_io_name_override(const char* name, int samedir);
 char has_menu();
 
@@ -214,6 +215,8 @@ void user_io_r_analog_joystick(unsigned char, char, char);
 void user_io_set_joyswap(int swap);
 int user_io_get_joyswap();
 char user_io_osd_is_visible();
+char user_io_should_suppress_menu_for_pending_neo_launch();
+void user_io_clear_pending_neo_launch_menu_suppression();
 void set_vga_fb(int enable);
 int get_vga_fb();
 void user_io_set_ini(int ini_num);
