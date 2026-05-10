@@ -35,19 +35,11 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "scheduler.h"
 #include "osd.h"
 #include "offload.h"
-#include "build_meta.h"
+#include "version.h"
 
 void http_server_start();
 
-const char *version = "$VER:" VDATE;
-
-#ifndef BUILD_STAMP
-#define BUILD_STAMP "unknown"
-#endif
-
-#ifndef BUILD_HASH
-#define BUILD_HASH "unknown"
-#endif
+const char *version = "$VER:" APP_BUILD_NUMBER_STR;
 
 static void log_startup_event(const char *message)
 {
@@ -65,7 +57,7 @@ static void log_startup_event(const char *message)
 int main(int argc, char *argv[])
 {
 	char startup_msg[1024];
-	snprintf(startup_msg, sizeof(startup_msg), "build version=%s stamp=%s hash=%s", version + 5, BUILD_STAMP, BUILD_HASH);
+	snprintf(startup_msg, sizeof(startup_msg), "build version=%s semantic=%s hash=%s", version + 5, APP_BUILD_VERSION, APP_BUILD_HASH);
 	log_startup_event(startup_msg);
 	snprintf(startup_msg, sizeof(startup_msg), "main entry argc=%d argv1=%s argv2=%s", argc,
 		(argc > 1) ? argv[1] : "",
@@ -94,7 +86,7 @@ int main(int argc, char *argv[])
 	printf("\nMiSTer code by Sorgelig\n\n");
 
 	printf("Version %s\n", version + 5);
-	printf("Build %s %s\n\n", BUILD_STAMP, BUILD_HASH);
+	printf("Build %s (%s) %s\n\n", APP_BUILD_NUMBER_STR, APP_BUILD_VERSION, APP_BUILD_HASH);
 
 	if (argc > 1) printf("Core path: %s\n", argv[1]);
 	if (argc > 2) printf("XML path: %s\n", argv[2]);
