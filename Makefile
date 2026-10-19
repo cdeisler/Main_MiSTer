@@ -17,7 +17,7 @@ else
 endif
 
 INCLUDE	= -I./
-INCLUDE	+= -I./bin
+INCLUDE	+= -I./$(BUILDDIR)
 INCLUDE	+= -I./lib/libco
 INCLUDE	+= -I./lib/miniz
 INCLUDE	+= -I./lib/md5
@@ -28,7 +28,22 @@ INCLUDE += -I./lib/bluetooth
 INCLUDE += -I./lib/serial_server/library
 INCLUDE += -I./lib/httplib
 
-BUILDDIR = bin
+BUILDDIR ?= bin
+HTTP_SERVER ?= 1
+KIOSK_MODE ?= 0
+ifneq ($(words $(HTTP_SERVER)),1)
+$(error HTTP_SERVER must be 0 or 1)
+endif
+ifneq ($(words $(KIOSK_MODE)),1)
+$(error KIOSK_MODE must be 0 or 1)
+endif
+ifneq ($(filter $(HTTP_SERVER),0 1),$(HTTP_SERVER))
+$(error HTTP_SERVER must be 0 or 1)
+endif
+ifneq ($(filter $(KIOSK_MODE),0 1),$(KIOSK_MODE))
+$(error KIOSK_MODE must be 0 or 1)
+endif
+FEATURE_HEADER := $(BUILDDIR)/build_features.h
 BUILD_FILE := build_number.txt
 VERSION_HEADER := $(BUILDDIR)/version.h
 APP_VERSION_MAJOR ?= 1
@@ -90,6 +105,10 @@ CPP_SRC = $(wildcard *.cpp) \
           $(wildcard ./lib/serial_server/library/*.cpp) \
           $(wildcard ./support/*/*.cpp)
 
+ifeq ($(HTTP_SERVER),0)
+CPP_SRC := $(filter-out http_server.cpp,$(CPP_SRC))
+endif
+
 IMG =     $(wildcard *.png)
 
 IMLIB2_LIB  = -Llib/imlib2 -lfreetype -lbz2 -lpng16 -lz -lImlib2
@@ -98,6 +117,8 @@ OBJ	= $(C_SRC:%.c=$(BUILDDIR)/%.c.o) $(CPP_SRC:%.cpp=$(BUILDDIR)/%.cpp.o) $(IMG:
 DEP	= $(C_SRC:%.c=$(BUILDDIR)/%.c.d) $(CPP_SRC:%.cpp=$(BUILDDIR)/%.cpp.d)
 
 DFLAGS	= $(INCLUDE) -D_7ZIP_ST -DPACKAGE_VERSION=\"1.3.3\" -DHAVE_LROUND -DHAVE_STDINT_H -DHAVE_STDLIB_H -DHAVE_SYS_PARAM_H -DENABLE_64_BIT_WORDS=0 -D_FILE_OFFSET_BITS=64 -D_LARGEFILE64_SOURCE
+DFLAGS += -include $(FEATURE_HEADER)
+DFLAGS += -DVDATE=\"$(shell date +%y%m%d)\"
 CFLAGS	= $(DFLAGS) -Wall -Wextra -Wno-strict-aliasing -Wno-stringop-overflow -Wno-stringop-truncation -Wno-format-truncation -Wno-psabi -Wno-restrict -c
 LFLAGS	= -lc -lstdc++ -lm -lrt -Wl,--allow-shlib-undefined -Wl,-rpath-link,/usr/arm-linux-gnueabihf/lib $(IMLIB2_LIB) -ldl -Llib/bluetooth -lbluetooth -lpthread
 
@@ -128,6 +149,13 @@ clean:
 .PHONY: FORCE
 FORCE:
 
+$(FEATURE_HEADER): FORCE
+	@mkdir -p $(dir $@)
+	$(Q)printf '#pragma once\n#define MISTER_HTTP_SERVER %s\n#define MISTER_KIOSK_MODE %s\n' '$(HTTP_SERVER)' '$(KIOSK_MODE)' > $@.tmp
+	$(Q)if ! cmp -s $@.tmp $@; then mv $@.tmp $@; else rm -f $@.tmp; fi
+
+$(OBJ) $(DEP): $(FEATURE_HEADER)
+$(BUILDDIR)/$(PRJ): $(FEATURE_HEADER)
 
 $(BUILD_FILE): FORCE
 	$(Q)printf '%s\n' '$(BUILD_NUMBER)' > $@.tmp

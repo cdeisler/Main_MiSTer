@@ -37,7 +37,9 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "offload.h"
 #include "version.h"
 
+#if MISTER_HTTP_SERVER
 void http_server_start();
+#endif
 
 const char *version = "$VER:" APP_BUILD_NUMBER_STR;
 
@@ -58,6 +60,8 @@ int main(int argc, char *argv[])
 {
 	char startup_msg[1024];
 	snprintf(startup_msg, sizeof(startup_msg), "build version=%s semantic=%s hash=%s", version + 5, APP_BUILD_VERSION, APP_BUILD_HASH);
+	log_startup_event(startup_msg);
+	snprintf(startup_msg, sizeof(startup_msg), "features http=%d kiosk=%d", MISTER_HTTP_SERVER, MISTER_KIOSK_MODE);
 	log_startup_event(startup_msg);
 	snprintf(startup_msg, sizeof(startup_msg), "main entry argc=%d argv1=%s argv2=%s", argc,
 		(argc > 1) ? argv[1] : "",
@@ -105,9 +109,11 @@ int main(int argc, char *argv[])
 	log_startup_event("user_io_init begin");
 	user_io_init((argc > 1) ? argv[1] : "",(argc > 2) ? argv[2] : NULL);
 	log_startup_event("user_io_init complete");
+#if MISTER_HTTP_SERVER
 	log_startup_event("http_server_start begin");
 	http_server_start();
 	log_startup_event("http_server_start complete");
+#endif
 
 #ifdef USE_SCHEDULER
 	scheduler_init();

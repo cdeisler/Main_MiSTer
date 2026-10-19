@@ -841,6 +841,11 @@ const char* get_rbf_name_bootcore(char *str)
 
 static void vga_nag()
 {
+#if MISTER_KIOSK_MODE
+	OsdDisable();
+	EnableOsd_on(OSD_ALL);
+	return;
+#endif
 	if (video_fb_state())
 	{
 		EnableOsd_on(OSD_VGA);
@@ -1575,7 +1580,7 @@ void HandleUI(void)
 			menustate = MENU_UNLOCK1;
 			osd_code_entry[0] = 0;
 		}
-		else if (menu || (is_menu() && !video_fb_state()) || (menustate == MENU_NONE2 && !mgl->done && mgl->state == 1))
+		else if (menu || (!MISTER_KIOSK_MODE && is_menu() && !video_fb_state()) || (menustate == MENU_NONE2 && !mgl->done && mgl->state == 1))
 		{
 			OsdSetSize(16);
 			menusub = 0;
@@ -7904,6 +7909,10 @@ static void set_text(const char *message, unsigned char code)
 
 void InfoMessage(const char *message, int timeout, const char *title)
 {
+#if MISTER_KIOSK_MODE
+	log_menu_kiosk_event(message);
+	return;
+#endif
 	if (menustate <= MENU_INFO)
 	{
 		if (menustate != MENU_INFO)
@@ -7934,6 +7943,10 @@ int menu_present()
 
 void Info(const char *message, int timeout, int width, int height, int frame)
 {
+#if MISTER_KIOSK_MODE
+	log_menu_kiosk_event(message);
+	return;
+#endif
 	if (menustate <= MENU_INFO)
 	{
 		OSD_PrintInfo(message, &width, &height, frame);
@@ -8020,7 +8033,7 @@ void ProgressMessage(const char* title, const char* text, int current, int max)
 		return;
 	}
 
-	if (quiet_load) return;
+	if (MISTER_KIOSK_MODE || quiet_load) return;
 
 	int new_progress = (((uint64_t)current)*PROGRESS_MAX) / max;
 	if (progress != new_progress)

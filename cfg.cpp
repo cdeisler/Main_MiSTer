@@ -626,6 +626,13 @@ void cfg_parse()
 		}
 	}
 
+#if MISTER_KIOSK_MODE
+	cfg.bootscreen = 0;
+	cfg.logo = 0;
+	cfg.controller_info = 0;
+	cfg.video_info = 0;
+	cfg.bootcore_timeout = 0;
+#endif
 }
 
 bool cfg_has_video_sections()

@@ -1,14 +1,10 @@
 #!/bin/bash
-set -eo pipefail
-cd /mnt/d/Documents/GitHub/MisterFPGA/Main_MiSTer
+set -euo pipefail
+cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.."
 source ./setup_default_toolchain.sh
-rm -f bin/menu.cpp.o bin/main.cpp.o bin/MiSTer bin/MiSTer.elf
-for pass in $(seq 1 20); do
-  echo "build pass $pass"
-  make -j8 bin/MiSTer
-  if [ -f bin/MiSTer ]; then
-    exit 0
-  fi
-done
-echo "build did not produce bin/MiSTer after repeated make passes" >&2
-exit 1
+make "$@" BUILDDIR=bin HTTP_SERVER=0 KIOSK_MODE=1 bin/MiSTer
+if arm-none-linux-gnueabihf-nm -C bin/MiSTer.elf | grep 'http_server_' > /dev/null; then
+  echo "kiosk binary unexpectedly contains HTTP server symbols" >&2
+  exit 1
+fi
+arm-none-linux-gnueabihf-readelf -h bin/MiSTer
