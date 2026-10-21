@@ -3597,6 +3597,19 @@ static int bg_has_picture = 0;
 extern uint8_t  _binary_logo_png_start[], _binary_logo_png_end[];
 void video_menu_bg(int n, int idle)
 {
+	if (MISTER_KIOSK_MODE)
+	{
+		bg_has_picture = 0;
+		menu_bg = 7;
+		menu_bgn = 1;
+		if (fb_base)
+		{
+			memset((void*)(fb_base + FB_SIZE), 0, FB_SIZE * sizeof(uint32_t));
+			video_fb_enable(0);
+		}
+		return;
+	}
+
 	bg_has_picture = 0;
 	menu_bg = n;
 	if (n)

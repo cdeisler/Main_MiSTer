@@ -181,3 +181,32 @@ The first SSH reconnect timed out while the Pi booted; the next read-only attemp
 The user subsequently confirmed Forgotten Worlds was running and reported MiSTer's intentional static/noise visual effect during startup. This is a presentation issue, not a reported signal fault. The startup was therefore not visually clean, despite successful game autoboot.
 
 Source inspection found `user_io_init()` calls `bootcore_init()` before `video_init()` and before menu-background initialization. `video_menu_bg()` mode 0 leaves the menu core's own output visible; mode 7 draws a black software framebuffer after video initialization. Disabling the software logo does not select that black background. An application-side black background could cover later menu-core frames, but cannot guarantee suppression of output before the application starts. Removing the complete effect requires further initial menu-core/boot-stage investigation and a witnessed startup test. No boot-layer changes or additional reboot were made during this investigation.
+
+### Static suppression work on 2026-10-20
+
+Inspected the upstream [menu core HDL](https://github.com/MiSTer-devel/Menu_MiSTer/blob/master/menu.sv). Its LFSR random generator feeds the intensity signal `comp_v`; RGB output assignments select framebuffer pixels when active and otherwise select `comp_v`. This identifies the hardware noise path, but the installed bitstream's exact source revision was not verified.
+
+Implemented application-side suppression under `MISTER_KIOSK_MODE` only:
+
+- When starting on the menu core, `user_io_init()` initializes video and selects black background mode 7 before the autoboot search. Normal builds retain their previous ordering, and the menu path avoids duplicate video initialization if autoboot returns.
+- `video_menu_bg()` forces mode 7 for kiosk builds. The later fast path clears a black framebuffer and returns before decorative drawing or animated-logo screensavers can run.
+- Startup logging records `kiosk menu background=black before autoboot` for runtime verification.
+- The complete offline ARM kiosk build passed and contains no HTTP server symbols. Both changed translation units also compiled with `HTTP_SERVER=1 KIOSK_MODE=0`.
+
+The new executable is built locally as `bin/MiSTer`. It has not been deployed or tested on the Pi. No device settings, FPGA bitstreams, boot files, or running game were changed, and no reboot was sent. This covers the software-controlled interval only; the earliest menu-core output before application initialization remains outside this change. A user-authorized startup test must establish how much of the observed static remains before considering boot-layer changes.
+
+## Menu FPGA upgrade on 2026-10-21
+
+- Quartus Prime Lite 17.0.0 Build 595 compiled the separate `menu-kiosk` revision for Cyclone V `5CSEBA6U23I7` successfully: zero errors, 59 warnings, elapsed time 9 minutes 55 seconds.
+- The complete synthesized hierarchy contains neither the LFSR nor cosine noise generator. Inactive framebuffer output is black. Reported worst-case setup slack is 0.494 ns and hold slack is 0.240 ns; some paths remain unconstrained. An existing four-bit-to-five-bit scaler mode connection diagnostic comes from unchanged upstream source. Compilation is not a physical startup validation.
+- Full file-level `/media/fat` rollback snapshot: `D:\Documents\MiSTer-backups\192.168.68.185\2026-10-21T032745Z-menu-fpga-predeploy`. It contains 20,137 files, including cores, ROMs, Linux files, INIs, and saved settings. Every archived file matched before/after device hashes and entry metadata. This is not a sector-level SD image or an atomic filesystem snapshot.
+- The snapshot includes `manifest.json`, `catalog.csv`, `ROLLBACK.md`, and a separately hash-verified original `replacement-originals/menu.rbf`. It includes network settings and must remain private and outside Git.
+- Reconnected with verified SSH host keys and deployed only `/media/fat/menu.rbf`, using a staged upload, size/hash verification, replacement, storage sync, and final readback. The installed kiosk Menu is 2,470,736 bytes; SHA-256 `5a8d3ac8c58d175932ddde52059892acc692840e9ddafecfa41072ff20a07a00`.
+- Original Menu rollback SHA-256: `5e5c1c65077aabe5b5dde2c591a7cd2728583e1d0313c6dc9864df80879565a9`.
+- All 19 protected executable, INI, Linux image, and saved configuration files retained their predeployment hashes. No application upgrade or settings change was performed in this step.
+- Deployment receipt: `deployment-20261021T131415Z.json` within the snapshot directory. Boot ID remained `02a9f755-b9f6-4d64-b87c-6b07f89f8e47` throughout deployment; Forgotten Worlds (`forgottn`, `JTCPS1`) stayed running. This boot ID differs from the earlier snapshot's historical boot ID; this deployment did not reboot the device.
+- Activation was pending at deployment because reboot authorization was unavailable. The user subsequently authorized exactly one reboot. Read-only verification confirmed boot ID changed from `02a9f755-b9f6-4d64-b87c-6b07f89f8e47` to `fadf2771-51d6-4410-ac95-f07e5989228d`, with `MiSTer-kiosk-black`, Forgotten Worlds (`forgottn`, `JTCPS1`), and the saved startup settings intact.
+- The user then paused remote activity for hard-reboot testing and reported the current feature set working properly, requesting a repository checkpoint. No additional remote reboot, deployment, or settings change was made during those tests.
+- The accepted installed application SHA-256 is `cc0c59cba155ca1b99bee3727ffc32f72369b4caca7eab69163b1d7ed589e989`. The later kiosk-only `video_menu_bg()` fast path remains a source improvement for future builds, not part of that installed executable. The checkpoint does not imply it was physically tested or deployed.
+
+Rollback: follow the snapshot's selective Menu rollback instructions and verify the original hash after copying. Restoring the file does not change the currently loaded FPGA core; reload or reboot only with authorization. Do not restore the entire snapshot over the running card or overwrite unrelated later changes.

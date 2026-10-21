@@ -30,7 +30,7 @@ Do not use `build.sh` for a local-only build: that legacy script also deploys.
 | Flag | Default | Effect |
 | --- | --- | --- |
 | `HTTP_SERVER` | `1` | Set to `0` to exclude the HTTP server and its startup/poll hooks, including HTTP game launch, inventory, diagnostics, startup-game persistence, and restart endpoints. |
-| `KIOSK_MODE` | `0` | Set to `1` to suppress automatic core browsing, loading progress, informational OSD overlays, framebuffer warnings, software boot/logo displays, and the autoboot countdown. Explicit menu requests remain available for maintenance. |
+| `KIOSK_MODE` | `0` | Set to `1` to suppress automatic core browsing, loading progress, informational OSD overlays, framebuffer warnings, software boot/logo displays, and the autoboot countdown. Selects a black menu background before autoboot and keeps menu backgrounds and screensavers black. Explicit menu requests remain available for maintenance. |
 
 Both flags accept only `0` or `1` and are independent. Normal launcher builds
 use `make HTTP_SERVER=1 KIOSK_MODE=0`. Changing flags updates a generated feature
@@ -62,3 +62,11 @@ boot-console output is never visible. Validate a cold boot on the target device
 before calling the complete boot experience menu-free. A missing or invalid game
 does not fall back to automatic browsing in kiosk mode; use maintenance access
 and the runtime log to recover.
+
+The menu core generates its own static/noise video while no framebuffer covers
+it. Kiosk mode initializes the existing black framebuffer before the native
+autoboot search, instead of waiting until after game selection. The startup log
+records `kiosk menu background=black before autoboot`. This covers the menu core
+once application video initialization completes, not frames emitted before the
+application starts. Eliminating that earlier interval requires a separate
+boot-stage or menu-bitstream change; this profile does not replace `menu.rbf`.

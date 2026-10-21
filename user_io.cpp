@@ -1554,12 +1554,20 @@ void user_io_init(const char *path, const char *xml)
 
 	if (cfg.log_file_entry) MakeFile("/tmp/STARTPATH", core_path);
 
+	const bool kiosk_menu_video = MISTER_KIOSK_MODE && is_menu();
+	if (kiosk_menu_video)
+	{
+		video_init();
+		video_menu_bg(7);
+		log_user_io_startup_event("kiosk menu background=black before autoboot");
+	}
+
 	if (cfg.bootcore[0] != '\0')
 	{
 		bootcore_init(xml ? xml : path);
 	}
 
-	video_init();
+	if (!kiosk_menu_video) video_init();
 	if (strlen(cfg.font)) LoadFont(cfg.font);
 	load_volume();
 
