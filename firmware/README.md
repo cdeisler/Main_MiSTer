@@ -142,3 +142,54 @@ Do not overwrite the active MiSTer INI just to test a device.
 Local builds and unit tests are not physical validation. No firmware upload,
 MiSTer deployment, live serial capture, or game input test is implied by this
 migration. The accepted kiosk success marker is separate from spinner acceptance.
+
+## Evaluation Checkpoint: 2026-11-07
+
+Firmware and local tooling are committed in `492aa3a` ("Import optical spinner
+firmware and local Arduino tooling"). Mouse, MouseY, Dial, and Diagnostic builds,
+the host optical tests, and both local MiSTer build profiles passed. These results
+do not establish USB input or Forgotten Worlds compatibility on the target.
+
+After that import, Diagnostic firmware was uploaded to the Micro. A physical
+bidirectional test observed 2,181 valid transitions, zero invalid transitions,
+all four encoder states, and opposite quadrature sequences. The cumulative count
+went from 0 to 1,135 and back to 91. Diagnostic sampling pauses during serial
+output, so this is not evidence of lossless capture at maximum spinner speed.
+The last observed runtime port was COM6; rediscover it before further work.
+
+The Micro still runs the serial-only Diagnostic sketch, not Mouse or Dial.
+Combined Dial mode is implemented and builds: one USB HID joystick report carries
+X/Y directions, three independent buttons, and relative Dial movement. It is
+ready for an initial integration test, not accepted as a working cabinet controller.
+Mouse mode remains a separate option for spinner-only use with another controller.
+
+The user is off site with only the Micro and spinner. Joystick, fire, start, and
+coin switches and the actual MiSTer are unavailable. The existing Pico controllers
+were flashed from https://github.com/cdeisler/GP2040-CE; they are not replaced or
+modified by this checkpoint. Consolidation onto one Micro per player remains an
+option to evaluate, not a completed migration.
+
+Pending evaluations:
+
+- [ ] Intentionally upload the selected USB mode after closing the serial monitor
+   and rediscovering the port; verify local USB enumeration and spinner reports.
+- [ ] With the switches available, verify all four directions, diagonals, and
+   independent fire/start/coin inputs. Check debounce and simultaneous switch and
+   spinner activity. Dial uses D4-D7 for directions and D8-D10 for its three buttons.
+- [ ] Stress-test maximum expected spinner speed with USB reporting active; check
+   for missed motion or input stalls. The diagnostic rotation test is insufficient
+   for this acceptance gate.
+- [ ] On the actual MiSTer, inspect the uploaded device's VID/PID, stable physical
+   USB path, and Linux events. Expect REL_X/REL_Y for mouse modes, or REL_DIAL,
+   ABS_X/ABS_Y, and independent joystick buttons for Dial mode.
+- [ ] Verify player assignment and button mappings in Forgotten Worlds. Mouse
+   spinner VID/PID/axis/throttle settings apply to the mouse conversion path;
+   native Dial uses the existing relative-axis handler. Do not assume the two modes
+   use identical configuration or reuse the Pico's saved mappings automatically.
+- [ ] Verify independent P1/P2 aim, movement, fire, start, and coin inputs, then
+   cold-boot persistence and the accepted kiosk experience. Use stable USB-port
+   assignments for identical devices and preserve existing controller/boot settings.
+
+No Mouse/Dial upload, MiSTer deployment, INI change, or game acceptance has occurred
+at this checkpoint. Keep the GP2040 Pico controllers intact until replacement
+hardware and both-player integration have passed the pending evaluations.
