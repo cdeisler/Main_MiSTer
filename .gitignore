@@ -34,6 +34,7 @@ MiSTer
 /bin
 build.log
 build.exit
+/firmware/.build/
 
 # local SSH credentials
 /.copilot/ssh_credentials_192.168.68.185.json

@@ -1,0 +1,81 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Arduino: verify toolset and discover boards",
+            "type": "process",
+            "command": "powershell.exe",
+            "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "${workspaceFolder}/firmware/arduino.ps1", "-Action", "Verify"],
+            "problemMatcher": []
+        },
+        {
+            "label": "Arduino: build all firmware modes",
+            "type": "process",
+            "command": "powershell.exe",
+            "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "${workspaceFolder}/firmware/arduino.ps1", "-Action", "Build", "-Mode", "All"],
+            "group": "build",
+            "problemMatcher": "$gcc"
+        },
+        {
+            "label": "Arduino: build selected firmware",
+            "type": "process",
+            "command": "powershell.exe",
+            "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "${workspaceFolder}/firmware/arduino.ps1", "-Action", "Build", "-Mode", "${input:firmwareMode}"],
+            "group": "build",
+            "problemMatcher": "$gcc"
+        },
+        {
+            "label": "Arduino: upload selected firmware (flashes Micro)",
+            "type": "process",
+            "command": "powershell.exe",
+            "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "${workspaceFolder}/firmware/arduino.ps1", "-Action", "Upload", "-Mode", "${input:firmwareMode}", "-Port", "${input:serialPort}"],
+            "problemMatcher": "$gcc"
+        },
+        {
+            "label": "Arduino: monitor diagnostic at 115200",
+            "type": "process",
+            "command": "powershell.exe",
+            "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "${workspaceFolder}/firmware/arduino.ps1", "-Action", "Monitor", "-Port", "${input:serialPort}"],
+            "problemMatcher": []
+        },
+        {
+            "label": "Optical: test decoder and movement",
+            "type": "process",
+            "command": "wsl",
+            "args": ["-d", "Ubuntu-24.04", "--exec", "bash", "-lc", "bash \"$(wslpath '${workspaceFolder}')/firmware/tests/run.sh\""],
+            "presentation": { "panel": "dedicated", "close": false },
+            "group": "test",
+            "problemMatcher": "$gcc"
+        },
+        {
+            "label": "MiSTer: build kiosk locally (no deployment)",
+            "type": "process",
+            "command": "wsl",
+            "args": ["-d", "Ubuntu-24.04", "--exec", "bash", "-lc", "bash \"$(wslpath '${workspaceFolder}')/scripts/build-mister-local.sh\" kiosk -j2"],
+            "group": "build",
+            "problemMatcher": []
+        },
+        {
+            "label": "MiSTer: build normal locally (no deployment)",
+            "type": "process",
+            "command": "wsl",
+            "args": ["-d", "Ubuntu-24.04", "--exec", "bash", "-lc", "bash \"$(wslpath '${workspaceFolder}')/scripts/build-mister-local.sh\" normal -j2"],
+            "group": "build",
+            "problemMatcher": []
+        }
+    ],
+    "inputs": [
+        {
+            "id": "firmwareMode",
+            "type": "pickString",
+            "description": "Firmware to build or flash",
+            "options": ["Mouse", "MouseY", "Dial", "Diagnostic"],
+            "default": "Mouse"
+        },
+        {
+            "id": "serialPort",
+            "type": "promptString",
+            "description": "Current Arduino Micro COM port (run board discovery first)"
+        }
+    ]
+}

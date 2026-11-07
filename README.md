@@ -17,14 +17,16 @@ source ./setup_default_toolchain.sh
 make HTTP_SERVER=0 KIOSK_MODE=1
 ```
 
-From PowerShell, the local kiosk build and binary validation helper is:
+From PowerShell, the tracked local kiosk build and binary validation helper is:
 
 ```powershell
-wsl -d Ubuntu-24.04 -- bash -lc 'cd /mnt/d/Documents/GitHub/Main_MiSTer; bash .copilot/build_kiosk_validate.sh -j2'
+wsl -d Ubuntu-24.04 --exec bash /mnt/d/Documents/GitHub/Main_MiSTer/scripts/build-mister-local.sh kiosk -j2
 ```
 
-The output is `bin/MiSTer`; `bin/MiSTer.elf` retains symbols for inspection.
-This helper only builds and validates locally. It does not deploy or reboot.
+The helper outputs `bin/kiosk/MiSTer`; `bin/kiosk/MiSTer.elf` retains symbols.
+Use `normal` instead of `kiosk` for an isolated normal build in `bin/normal`.
+Build counters stay inside each output directory. This helper only builds and
+validates locally. It does not deploy or reboot. Plain `make` still uses `bin`.
 Do not use `build.sh` for a local-only build: that legacy script also deploys.
 
 | Flag | Default | Effect |
@@ -70,3 +72,19 @@ records `kiosk menu background=black before autoboot`. This covers the menu core
 once application video initialization completes, not frames emitted before the
 application starts. Eliminating that earlier interval requires a separate
 boot-stage or menu-bitstream change; this profile does not replace `menu.rbf`.
+
+## Accepted Kiosk Milestone
+
+The annotated tag `kiosk-feature-complete-2026-11-07` preserves checkpoint
+`db0fa85343361c1aaad301d23426ebbda1c21620` and records the user's acceptance of
+the working, feature-complete kiosk experience. The original acceptance tag
+`kiosk-working-2026-10-21` remains intact. The tag annotation and session notes
+distinguish the accepted installed executable from a later compile-only video
+fast path; this is not a claim that that exact source binary was deployed.
+
+## Optical Spinner Firmware
+
+The `feature/kiosk-optical-spinner-usb` branch starts from the accepted kiosk
+checkpoint. Arduino Micro firmware, shared optical processing, serial diagnostics,
+and local build/upload/monitor tasks now live here. See [firmware/README.md](firmware/README.md)
+for wiring, dependencies, USB mouse and native Dial modes, and live-test steps.
