@@ -3,6 +3,10 @@
 Arduino Micro (ATmega32U4, 5 V, 16 MHz) firmware, separate from the ARM/Linux
 MiSTer application. The Main Makefile does not compile these sketches.
 
+Current hardware checkpoint: native Dial firmware and D8 fire were accepted in
+Forgotten Worlds on 2026-11-08. See the dated working-prototype checkpoint below
+for the installed mappings and remaining acceptance tests.
+
 ## Provenance
 
 Migrated from `cdeisler/MisterFPGA`, branch
@@ -193,3 +197,92 @@ Pending evaluations:
 No Mouse/Dial upload, MiSTer deployment, INI change, or game acceptance has occurred
 at this checkpoint. Keep the GP2040 Pico controllers intact until replacement
 hardware and both-player integration have passed the pending evaluations.
+
+## Working Spinner Prototype: 2026-11-08
+
+This checkpoint supersedes the pending hardware status above. The existing Dial
+firmware from `492aa3a` was uploaded and accepted for basic spinner/fire operation
+on the actual MiSTer. No MiSTer application source change or executable deployment
+was needed. This is a working spinner prototype, not full cabinet acceptance.
+
+### Firmware and Hardware
+
+- Arduino Micro, ATmega32U4, 5 V/16 MHz; board target `arduino:avr:micro`.
+- Encoder A/B on D2/D3, encoder power on 5 V, and shared GND.
+- Fire microswitch COM to GND, normally-open contact to D8; normally-closed
+   contact unused. The switch uses the firmware's internal pull-up.
+- Successful upload: `& ./firmware/arduino.ps1 -Action Upload -Mode Dial -Port COM8`.
+   Build size was 6,752 bytes flash and 316 bytes RAM. Runtime subsequently appeared
+   on COM5; rediscover ports before any future upload.
+- Windows detected a healthy HID game controller. MiSTer detected VID/PID
+   `2341:8037` with USB unique string `HIDOD`. Dial uses report ID 4, signed X/Y,
+   relative Dial, and three independent button bits; it is not a composite mouse.
+
+### Live MiSTer Acceptance
+
+The target was reached at `192.168.68.174` and ran `/media/fat/MiSTer-kiosk-black`
+with `/media/fat/_Arcade/Forgotten Worlds (World, newer).mra` and `jtcps1.rbf`.
+The core mapping name was verified as `forgottn`.
+
+A bounded, read-only raw HID capture observed 1,178 valid reports, three D8 presses
+and three releases, 693 positive and 713 negative Dial counts, a final released
+button state, and zero unexpected reports. Linux input event numbers changed
+after reload; rediscover by device identity rather than assuming an event number.
+
+After the mappings below were installed with user authorization, the user
+confirmed smooth, responsive in-game rotation in both directions and the expected
+rapid firing while D8 was held. Keyboard credit/start also worked. Held-button
+firing is game behavior, not newly implemented firmware autofire. These results
+do not measure latency or prove lossless capture at maximum spinner speed.
+
+### Installed Mapping Checkpoint
+
+Two new files were installed under `/media/fat/config/inputs/`, without replacing
+existing controller maps:
+
+| File | Values in the 32-entry array |
+| --- | --- |
+| `input_2341_8037_HIDOD_v3.map` | Entry 4 = `0x120`; entries 24-31 = `0xffffffff`; all other entries = 0 |
+| `forgottn_input_2341_8037_HIDOD_v3.map` | Entry 4 = `0x120`; all other entries = 0 |
+
+Entry numbers are zero-based. Each file is exactly 128 bytes: 32 little-endian
+unsigned 32-bit integers, equivalent to Python `struct.pack('<32I', *values)`.
+Linux button code `0x120` is BTN_TRIGGER; entry 4 supplies system A and core Shoot.
+The `HIDOD` suffix is required for this observed Arduino identity. These values
+fully specify the installed maps without tracking generated binary map files.
+
+Both files were read back and compared against the expected arrays. SHA256 checks
+confirmed that `/media/fat/MiSTer.ini` and the existing
+`input_0079_0006_v3.map` remained unchanged. No boot configuration was changed.
+Pressing the mapped controller button assigns this generic Dial device before
+native relative Dial input can reach the game. The kiosk's Reboot action returned
+to Forgotten Worlds via bootcore; it did not provide usable Menu-core setup.
+
+### Controller Plan and Remaining Gates
+
+The agreed design is one Micro per player, each using the same Dial firmware and
+D2-D10 wiring. The preferred second board is the official Arduino Micro with
+headers, model A000053, matching the tested board type. A documented ATmega32U4
+5 V/16 MHz Pro Micro is a possible alternative, but its pin layout, board target,
+bootloader, and USB identity must be verified separately. The ATmega328P Pro Mini
+schematic examined during selection is not compatible with this native-USB plan.
+
+Switch grounds can share a common junction. D4/D5/D6/D7 are planned for joystick
+up/down/left/right, D8 for fire, D9 for start, and D10 for coin. Only D8 has been
+mapped and accepted in-game so far. The existing GP2040 Pico controllers remain
+unaltered. The second board has not yet been flashed or tested.
+
+- [x] Upload Dial and verify local USB enumeration.
+- [x] Verify live MiSTer bidirectional Dial and D8 press/release reports.
+- [x] Install and read back system/core fire mappings; accept spinner/fire in-game.
+- [ ] Wire, map, and test joystick directions/diagonals plus D9 start and D10 coin.
+- [ ] Stress-test simultaneous controls and maximum expected spinner speed.
+- [ ] Flash the second Micro and verify independent two-player operation.
+- [ ] Configure stable physical USB-port P1/P2 assignments. Identical VID/PID and
+   `HIDOD` values cannot distinguish the players; transient event/input numbers
+   must not be used as permanent identities.
+- [ ] Explicitly verify cold-boot persistence and the accepted kiosk experience.
+
+Firmware sources and local build/upload tooling are tracked; generated builds
+and private SSH credentials remain excluded. This checkpoint records the live
+configuration rather than changing the MiSTer or claiming the pending gates passed.
