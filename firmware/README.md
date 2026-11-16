@@ -7,6 +7,12 @@ Current hardware checkpoint: native Dial firmware and D8 fire were accepted in
 Forgotten Worlds on 2026-11-08. See the dated working-prototype checkpoint below
 for the installed mappings and remaining acceptance tests.
 
+The reordered pin profile was built and uploaded on 2026-11-14. Windows USB
+enumeration passed, and the Micro's direction/Start maps were subsequently
+installed and read back on MiSTer. After correcting the switch contacts and
+ground connection, the user confirmed all current controls working. See the
+latest checkpoint for this basic acceptance and remaining tests.
+
 ## Provenance
 
 Migrated from `cdeisler/MisterFPGA`, branch
@@ -40,18 +46,30 @@ arbitrary-board support. Do not feed 5 V signals into a 3.3 V-only board.
 
 ## Kraken Micro Wiring
 
-| Signal | Micro Pin |
-| --- | --- |
-| Encoder A | D2 |
-| Encoder B | D3 |
-| Encoder power | 5 V |
-| Shared ground | GND |
-| Joystick up/down/left/right | D4/D5/D6/D7 |
-| Buttons 1/2/3 | D8/D9/D10 |
+Current reordered profile, 2026-11-14. The November 8 checkpoint below records
+the earlier wiring, not the pin assignments in the current firmware.
+
+| Signal | Wire / Connector | Micro Pin |
+| --- | --- | --- |
+| Encoder A | Spinner harness | D0 / RX |
+| Encoder B | Spinner harness | D1 / TX |
+| Encoder power | Spinner harness | 5 V |
+| Joystick Up | Green, Molex position 1 | D6 |
+| Joystick Down | Yellow, Molex position 2 | D5 |
+| Joystick Left | Orange, Molex position 3 | D4 |
+| Joystick Right | Purple, Molex position 4 | D3 |
+| Player Start / HID button 2 | Blue, Molex position 5 | D2 |
+| Shared ground | Black, Molex position 6; spinner common | GND |
+| Fire / HID button 1 | Separate spinner harness | D8 |
+| Coin / HID button 3 | Optional separate switch | D9 |
 
 Encoder inputs use `INPUT`; the control inputs use `INPUT_PULLUP` and switch to
 ground. This is the direct 5 V Micro connection, not the Pico/TXS0108E wiring.
 Unconnected control inputs stay released.
+
+D0 and D1 share AVR Port D and support CHANGE interrupts. Do not use `Serial1`
+on these pins; native USB serial and HID remain available. D7 and D10 are spare.
+Blue/D2 is Player Start, not Fire. All switch and spinner grounds must be common.
 
 ## Toolset and Builds
 
@@ -286,3 +304,97 @@ unaltered. The second board has not yet been flashed or tested.
 Firmware sources and local build/upload tooling are tracked; generated builds
 and private SSH credentials remain excluded. This checkpoint records the live
 configuration rather than changing the MiSTer or claiming the pending gates passed.
+
+## Reordered Controller Checkpoint: 2026-11-14
+
+The shared pin header now matches the reordered wiring table above. The existing
+Dial report exposes Left/Right as X = -127/+127 and Up/Down as Y = -127/+127;
+opposite directions cancel. Fire, Start, and optional Coin occupy button-mask
+bits 0, 1, and 2 respectively. The HID descriptor and MiSTer application were
+not changed.
+
+- Discovery found one Arduino Micro on COM5, target `arduino:avr:micro`.
+- All four modes (Mouse, MouseY, Dial, Diagnostic) built successfully.
+- `& ./firmware/arduino.ps1 -Action Upload -Mode Dial -Port COM5` succeeded.
+   Dial used 6,752 bytes flash and 316 bytes RAM.
+- After upload, Windows showed healthy serial COM5 and HID game-controller
+   interfaces, VID/PID `2341:8037`, USB unique string `HIDOD`.
+- At the initial upload, no physical switch/encoder exercise or live MiSTer
+   acceptance had been performed for this new pin profile. Subsequent live
+   checks and user-confirmed operation are recorded below.
+
+### Installed MiSTer Mapping Update
+
+The November 8 installed maps expose only Fire and explicitly disable the axes.
+Those original arrays were read and backed up before updating just the Micro's
+two maps on November 14. The installed arrays below were verified by exact
+readback, then independently checked over a fresh SSH connection along with
+the original backups.
+The source uses synthetic direction keys starting at `KEY_EMU` (`0x300`), with
+positive X/Y adding 1. Axis-map values combine the EV_ABS marker `0x20000` with
+ABS_X/ABS_Y codes 0/1. Entries 24/25 must identify the axes as well as 28/29:
+the digital-direction conversion otherwise ignores this signed range.
+
+For the same observed identity and Forgotten Worlds MRA, the installed entries
+are below. All indices are zero-based in the 32-entry, 128-byte little-endian
+format documented in the earlier checkpoint.
+
+| Entry | System map | Forgotten Worlds core map |
+| --- | --- | --- |
+| 0: Right | `0x301` | `0x301` |
+| 1: Left | `0x300` | `0x300` |
+| 2: Down | `0x303` | `0x303` |
+| 3: Up | `0x302` | `0x302` |
+| 4: A / Shoot | `0x120` | `0x120` |
+| 10 | Unchanged (Select; currently 0) | `0x121` (Start) |
+| 11 | `0x121` (Start) | Unchanged (Coin; currently 0) |
+| 24 and 28: X | `0x20000` | Unchanged |
+| 25 and 29: Y | `0x20001` | Unchanged |
+| 26, 27, 30, 31 | Unchanged (`0xffffffff`) | Unchanged |
+
+The MRA's Start is button-list index 6 plus four direction entries, hence core
+entry 10; system Start is entry 11. `0x120` was observed for HID button 1.
+Linux capability checks confirmed buttons `0x120`, `0x121`, and `0x122`,
+ABS_X/ABS_Y ranges -127..127, and REL_DIAL code 7. Start/button 2 uses BTN_THUMB
+(`0x121`); that capability check did not exercise the physical D2 switch.
+Optional D9/Coin remains unmapped until its wiring and button code are verified.
+
+Both original maps have adjacent backups with suffix
+`.bak-20261114-170750-1052`. SHA256 checks confirmed the other controller map and
+`/media/fat/MiSTer.ini` were unchanged. No kiosk executable, boot setting,
+process restart, or USB reset was involved.
+
+SSH timed out at the last verified MiSTer address, `192.168.68.174`. Its known
+Wi-Fi MAC is `E0-AD-47-70-4B-A0`. The alternate `.185` address refused SSH and
+its neighbor entry had a different MAC; it must not be assumed to be MiSTer.
+Later retries reached `.174` and confirmed the Micro connected as `2341:8037`
+with unique string `HIDOD`; the Micro maps were then updated as described above.
+
+A 45-second read-only raw-HID capture observed 3,879 valid reports and no
+unexpected reports, with 3,087 positive and 3,450 negative Dial counts. All
+reports had X/Y = 0/0 and button mask 0, so joystick, Fire, and Start were not
+verified. It is unknown whether those controls were exercised during the window.
+Missing raw input cannot be corrected by changing a MiSTer map.
+
+Reconnect the Micro's USB cable to reload the installed maps, then press a
+mapped button to assign the controller. Use the keyboard for credit as needed
+and confirm directions, diagonals, Fire, Start, and both spinner directions
+in-game. If exercised switches still produce no input, check signal wiring and
+shared ground before changing maps further. Fixed P1/P2 USB-port assignment
+and cold-boot verification remain separate pending gates.
+
+### User-Confirmed Working Controls
+
+On November 14, the user confirmed the joystick worked in-game after correcting
+a misplaced pin, then reported that the blue D2 Start connection worked. After
+finding the correct ground pin for the Fire connection, the user reported:
+"all controls are working now."
+
+This records user-confirmed basic operation of the current joystick, Start,
+Fire, and spinner setup with the reordered Dial firmware and installed maps.
+No additional firmware or mapping change was required for the contact/ground
+corrections. This confirmation is not a new instrumented HID capture.
+
+Optional D9/Coin remains unmapped and unverified. Simultaneous/max-speed stress
+testing, a second Micro, independent two-player operation, fixed P1/P2 USB-port
+assignments, and explicit cold-boot persistence remain separate pending gates.
